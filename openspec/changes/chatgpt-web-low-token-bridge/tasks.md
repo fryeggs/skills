@@ -34,3 +34,9 @@
 - [x] 6.2 Codex runs `openspec validate chatgpt-web-low-token-bridge --strict --no-interactive` and repeats all automated tests independently in the isolated worktree.
 - [x] 6.3 With user awareness before visible browser interaction, Codex executes a minimal real OpenCLI/ChatGPT no-send test to verify owned authenticated window minimization and cleanup; recent-topic and capsule routing remain covered by automated tests until a live message is authorized.
 - [x] 6.4 Only after all acceptance checks pass, Codex deploys reviewed files to `/Users/qingshan/.codex/skills/chatgpt-web` and does not push the newly added `chatgpt-web` directory to GitHub without separate user authorization.
+
+## 7. Composer Compatibility Repair
+
+- [x] 7.1 Reproduce the live failure without sending a prompt and confirm that the conversation DOM contains `#prompt-textarea` while OpenCLI `state` omits it.
+- [x] 7.2 Replace state-summary composer detection with direct DOM selector discovery, submit through the owned tab's live send control, and add focused regression tests.
+- [x] 7.3 Repeat automated validation and an authorized live existing-conversation delegation before redeploying the global skill.

@@ -33,6 +33,14 @@ DEFAULT_RETURN_MODE = "capsule"
 DEFAULT_MAX_CHARS = 2000
 CAPSULE_START = "<codex_capsule>"
 CAPSULE_END = "</codex_capsule>"
+COMPOSER_SELECTORS = (
+    "#prompt-textarea",
+    'textarea[data-testid="prompt-textarea"]',
+    '[data-testid="prompt-textarea"][contenteditable="true"]',
+    'textarea[aria-label*="ChatGPT"]',
+    '[contenteditable="true"][role="textbox"][aria-label*="ChatGPT"]',
+)
+SEND_BUTTON_SELECTOR = 'button[data-testid="send-button"]'
 
 
 def run(cmd, timeout=60, check=False):
@@ -652,6 +660,44 @@ def current_url(session, target_id=None):
     return match.group(0) if match else out.strip()
 
 
+def find_composer_selector(session, target_id=None):
+    """Return a usable ChatGPT composer selector found directly in the DOM."""
+    selectors = json.dumps(COMPOSER_SELECTORS)
+    js = f"""(() => {{
+  const selectors = {selectors};
+  const index = selectors.findIndex(selector => {{
+    const element = document.querySelector(selector);
+    return element && !element.disabled && element.getAttribute('aria-disabled') !== 'true';
+  }});
+  return index >= 0 ? 'CHATGPT_WEB_COMPOSER:' + index : 'CHATGPT_WEB_COMPOSER:none';
+}})()"""
+    tab_args = ["--tab", target_id] if target_id else []
+    out, code = run(["opencli", "browser", session, "eval"] + tab_args + [js], timeout=30)
+    if code != 0:
+        return None
+    match = re.search(r"CHATGPT_WEB_COMPOSER:(\d+)", out)
+    if not match:
+        return None
+    index = int(match.group(1))
+    return COMPOSER_SELECTORS[index] if index < len(COMPOSER_SELECTORS) else None
+
+
+def submit_prompt(session, target_id=None):
+    """Submit the prepared prompt through ChatGPT's owned-tab send button."""
+    selector = json.dumps(SEND_BUTTON_SELECTOR)
+    js = f"""(() => {{
+  const button = document.querySelector({selector});
+  if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true') {{
+    return 'CHATGPT_WEB_SUBMIT:unavailable';
+  }}
+  button.click();
+  return 'CHATGPT_WEB_SUBMIT:clicked';
+}})()"""
+    tab_args = ["--tab", target_id] if target_id else []
+    out, code = run(["opencli", "browser", session, "eval"] + tab_args + [js], timeout=20)
+    return code == 0 and "CHATGPT_WEB_SUBMIT:clicked" in out
+
+
 def conversation_id(url):
     match = re.search(r"https://chatgpt\.com/(?:c/|g/[^/]+/c/)([^/?#\s]+)", url or "")
     return match.group(1) if match else None
@@ -819,19 +865,18 @@ def ask(args):
                         "No prompt was sent. Use `discover` and `select` to choose an accessible conversation."
                     )
 
-            state_out, _ = run(
-                ["opencli", "browser", window_mgr.session, "state", "--tab", target_id], timeout=30
-            )
-            if "#prompt-textarea" not in state_out and "与 ChatGPT 聊天" not in state_out and "Message ChatGPT" not in state_out:
-                raise RuntimeError("ChatGPT composer not found. The browser may not be logged in or the page layout changed.")
+            composer_selector = find_composer_selector(window_mgr.session, target_id=target_id)
+            if not composer_selector:
+                raise RuntimeError("ChatGPT composer not found in the page DOM. The browser may not be logged in or the page layout changed.")
 
             out, code = run(
-                ["opencli", "browser", window_mgr.session, "type", "--tab", target_id, "#prompt-textarea", prompt],
+                ["opencli", "browser", window_mgr.session, "type", "--tab", target_id, composer_selector, prompt],
                 timeout=45,
             )
             if code != 0:
                 raise RuntimeError(out)
-            run(["opencli", "browser", window_mgr.session, "keys", "--tab", target_id, "Enter"], timeout=20, check=True)
+            if not submit_prompt(window_mgr.session, target_id=target_id):
+                raise RuntimeError("ChatGPT send button could not be activated in the owned automation tab.")
             wait_until_done(window_mgr.session, args.timeout, target_id=target_id)
             answer = newest_assistant_text(window_mgr.session, target_id=target_id)
             url = current_url(window_mgr.session, target_id=target_id)

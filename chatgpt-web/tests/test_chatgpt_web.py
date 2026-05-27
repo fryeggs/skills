@@ -668,6 +668,51 @@ class TestTargetSpecificBrowserOps(unittest.TestCase):
         self.assertIn("tab-3", cmd)
 
 
+class TestComposerDiscovery(unittest.TestCase):
+    """Test composer lookup against the live DOM rather than state summaries."""
+
+    @patch('chatgpt_web.run')
+    def test_returns_prompt_textarea_found_by_dom_eval(self, mock_run):
+        mock_run.return_value = ("CHATGPT_WEB_COMPOSER:0", 0)
+        selector = chatgpt_web.find_composer_selector("session1", target_id="tab-4")
+        self.assertEqual(selector, "#prompt-textarea")
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("eval", cmd)
+        self.assertNotIn("state", cmd)
+        self.assertIn("--tab", cmd)
+        self.assertIn("tab-4", cmd)
+
+    @patch('chatgpt_web.run')
+    def test_returns_accessible_textarea_fallback(self, mock_run):
+        mock_run.return_value = ("CHATGPT_WEB_COMPOSER:3", 0)
+        selector = chatgpt_web.find_composer_selector("session1")
+        self.assertEqual(selector, 'textarea[aria-label*="ChatGPT"]')
+
+    @patch('chatgpt_web.run')
+    def test_returns_none_when_dom_has_no_composer(self, mock_run):
+        mock_run.return_value = ("CHATGPT_WEB_COMPOSER:none", 0)
+        self.assertIsNone(chatgpt_web.find_composer_selector("session1"))
+
+
+class TestPromptSubmission(unittest.TestCase):
+    """Test submission through the send button in the owned page context."""
+
+    @patch('chatgpt_web.run')
+    def test_submits_with_dom_click_in_owned_tab(self, mock_run):
+        mock_run.return_value = ("CHATGPT_WEB_SUBMIT:clicked", 0)
+        self.assertTrue(chatgpt_web.submit_prompt("session1", target_id="tab-5"))
+        cmd = mock_run.call_args[0][0]
+        self.assertIn("eval", cmd)
+        self.assertIn("--tab", cmd)
+        self.assertIn("tab-5", cmd)
+        self.assertIn("send-button", cmd[-1])
+
+    @patch('chatgpt_web.run')
+    def test_refuses_when_send_button_is_unavailable(self, mock_run):
+        mock_run.return_value = ("CHATGPT_WEB_SUBMIT:unavailable", 0)
+        self.assertFalse(chatgpt_web.submit_prompt("session1", target_id="tab-5"))
+
+
 class TestReturnModeDefaults(unittest.TestCase):
     """Test return mode defaults and validation."""
 
@@ -728,6 +773,7 @@ class TestCapsuleSuccessMetadata(unittest.TestCase):
             "current_url": patch("chatgpt_web.current_url"),
             "wait": patch("chatgpt_web.wait_until_done"),
             "assistant": patch("chatgpt_web.newest_assistant_text"),
+            "submit": patch("chatgpt_web.submit_prompt", return_value=True),
             "run": patch("chatgpt_web.run"),
             "print": patch("builtins.print"),
         }
@@ -744,7 +790,7 @@ class TestCapsuleSuccessMetadata(unittest.TestCase):
         owm_inst.navigate_to_topic.return_value = True
         owm_inst.cleanup.return_value = True
         mocks["owm"].return_value = owm_inst
-        mocks["run"].return_value = ("#prompt-textarea found", 0)
+        mocks["run"].return_value = ("CHATGPT_WEB_COMPOSER:0", 0)
         mocks["current_url"].return_value = "https://chatgpt.com/c/abc"
         return mocks
 
@@ -798,6 +844,20 @@ class TestCapsuleSuccessMetadata(unittest.TestCase):
             chatgpt_web.ask(self._make_args(return_mode="full"))
             metrics_call = mocks["record_metrics"].call_args
             self.assertTrue(metrics_call[1]["success"])
+        finally:
+            self._stop_mocks(mocks)
+
+    def test_submit_uses_owned_tab_dom_submission(self):
+        """Prepared content is submitted through the isolated page helper."""
+        mocks = self._setup_mocks()
+        try:
+            mocks["assistant"].return_value = (
+                '<codex_capsule>{"conclusion":"ok","evidence":[],"uncertainties":[],"actions_for_codex":[]}</codex_capsule>'
+            )
+            chatgpt_web.ask(self._make_args())
+            commands = [entry[0][0] for entry in mocks["run"].call_args_list]
+            mocks["submit"].assert_called_once()
+            self.assertFalse(any("keys" in cmd and "Enter" in cmd for cmd in commands))
         finally:
             self._stop_mocks(mocks)
 
@@ -908,6 +968,7 @@ class TestKeepOpenFlag(unittest.TestCase):
             "current_url": patch("chatgpt_web.current_url"),
             "wait": patch("chatgpt_web.wait_until_done"),
             "assistant": patch("chatgpt_web.newest_assistant_text"),
+            "submit": patch("chatgpt_web.submit_prompt", return_value=True),
             "run": patch("chatgpt_web.run"),
             "print": patch("builtins.print"),
         }
@@ -924,7 +985,7 @@ class TestKeepOpenFlag(unittest.TestCase):
         owm_inst.navigate_to_topic.return_value = True
         owm_inst.cleanup.return_value = True
         mocks["owm"].return_value = owm_inst
-        mocks["run"].return_value = ("#prompt-textarea found", 0)
+        mocks["run"].return_value = ("CHATGPT_WEB_COMPOSER:0", 0)
         mocks["current_url"].return_value = "https://chatgpt.com/c/abc"
         return mocks
 
@@ -1168,7 +1229,7 @@ class TestSharedWindowAbortsPrompt(unittest.TestCase):
         mocks["select_topic"].return_value = {
             "id": "t1", "title": "Test Topic", "url": "https://chatgpt.com/c/abc",
         }
-        mocks["run"].return_value = ("#prompt-textarea found", 0)
+        mocks["run"].return_value = ("CHATGPT_WEB_COMPOSER:0", 0)
         mocks["current_url"].return_value = "https://chatgpt.com/c/abc"
         return mocks
 
