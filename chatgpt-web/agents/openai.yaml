@@ -1,0 +1,4 @@
+interface:
+  display_name: "ChatGPT Web"
+  short_description: "Use ChatGPT web through OpenCLI browser automation."
+  default_prompt: "Use ChatGPT web to answer this question with current web knowledge."
