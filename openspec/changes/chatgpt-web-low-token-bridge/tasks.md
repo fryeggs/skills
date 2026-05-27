@@ -1,7 +1,7 @@
 ## 1. Baseline And Isolation
 
 - [x] 1.1 Confirm that the Git development baseline contains the unchanged active `chatgpt-web` files and that `python3 -m py_compile chatgpt-web/scripts/chatgpt_web.py` passes.
-- [ ] 1.2 Commit OpenSpec bootstrap and validated change artifacts on the baseline branch, without modifying the active `/Users/qingshan/.agents/skills/chatgpt-web` deployment.
+- [x] 1.2 Commit OpenSpec bootstrap and validated change artifacts on the baseline branch, without modifying the active `/Users/qingshan/.agents/skills/chatgpt-web` deployment.
 - [ ] 1.3 Create a GSD-managed isolated implementation worktree/milestone from the committed baseline and record its path for Codex review.
 
 ## 2. Return Protocol And Token Control
