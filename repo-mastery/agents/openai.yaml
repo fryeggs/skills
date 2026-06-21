@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Mastery"
+  short_description: "Learn a repository while implementing a target feature"
+  default_prompt: "Use $repo-mastery to learn this repository while implementing my requested feature."
