@@ -11,6 +11,7 @@ Reduce duplicate skills and unstable wrappers while preserving the smallest reli
 - Keep `node_repl` for DOM and Playwright automation. Record and Replay does not replace programmatic browser control.
 - Keep `computer-use` for unsupported visual UI actions and `event-stream` because Record and Replay depends on it.
 - Keep Record and Replay as the preferred route for turning repeated desktop actions into dedicated skills.
+- Keep `claude-hud` as an enabled Claude-only plugin and verify its status-line integration is active, not merely installed.
 - Remove the stale `memory-lancedb-pro` MCP registration after confirming its configured server path is absent.
 - Remove the duplicate alpha `browser-use` plugin and keep the stable Browser/Chrome plugins.
 - Narrow `web-content-learner` to media download, subtitle extraction, and Whisper transcription; ordinary web research uses the available browser/web tooling.
